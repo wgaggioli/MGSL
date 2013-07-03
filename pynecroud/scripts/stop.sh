@@ -1,0 +1,1 @@
+sudo stop minecraft-server
