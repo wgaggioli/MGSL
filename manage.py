@@ -38,7 +38,7 @@ if __name__ == '__main__':
     args, remainder = parser.parse_known_args()
     cmd_kls = commands[args.command]
     cmd = cmd_kls.from_args_list(remainder)
-    cmd.run()
+    cmd.full_run()
 
     # else:
     #     a = raw_input("you are about to END a server. Continue? (y/n)")

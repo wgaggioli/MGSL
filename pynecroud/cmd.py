@@ -53,7 +53,14 @@ class BaseCommand(object):
         return self.parser.description
 
     def run(self):
+        """Override this with your desired functionality"""
         raise NotImplementedError
+
+    def full_run(self):
+        start_t = time.time()
+        self.run()
+        self.write_local_cache()
+        log.info('Finished in {:0.2f} seconds'.format(time.time() - start_t))
 
     @classmethod
     def from_args_list(cls, args):
@@ -86,6 +93,8 @@ class KillCommand(BaseCommand):
 
         manager = self.manager_cls(self.config)
         manager.kill_instance(instance_id, host)
+        self.local_cache.pop('instance_id', None)
+        self.local_cache.pop('host', None)
 
 
 class StartCommand(BaseCommand):
@@ -137,7 +146,6 @@ class StartCommand(BaseCommand):
         return launcher
 
     def run(self):
-        start_t = time.time()
         launcher = self.launch_instance()
         user = self._get_option('login_user', 'ubuntu')
         runner = ServerRunner(
@@ -153,9 +161,7 @@ class StartCommand(BaseCommand):
             "host": runner.host,
             "key": launcher.key_path,
         })
-        self.write_local_cache()
         log.critical('Instance is at {}'.format(runner.host))
-        log.info('Finished in {:0.2f} seconds'.format(time.time() - start_t))
 
 
 class _BaseRunning(BaseCommand):
@@ -201,7 +207,6 @@ class SaveCommand(_BaseRunning):
             "key": mcs.runner.key_path,
             "world": world
         })
-        self.write_local_cache()
 
 
 class LoadCommand(_BaseRunning):
@@ -226,7 +231,6 @@ class LoadCommand(_BaseRunning):
             "key": mcs.runner.key_path,
             "world": world
         })
-        self.write_local_cache()
 
 
 class ChangeWorldCommand(_BaseRunning):
@@ -237,6 +241,7 @@ class ChangeWorldCommand(_BaseRunning):
         if not world:
             raise InvalidConfig('Must specify the world to change to')
         mcs.change_world(world)
+        self.local_cache['world'] = world
 
 
 class ChangeInstanceTypeCommand(StartCommand):
@@ -276,8 +281,6 @@ class ChangeInstanceTypeCommand(StartCommand):
     parser.add_argument('--cur_key', help='Path to private key for current')
 
     def run(self):
-        start_t = time.time()
-
         # current instance params (default to reading local cache)
         cur_host = self.options.cur_host or self.local_cache.get('cur_host')
         if not cur_host:
@@ -316,5 +319,3 @@ class ChangeInstanceTypeCommand(StartCommand):
             log.info('Killing {}'.format(cur_host))
             manager = self.manager_cls(self.config)
             manager.kill_instance(dns_name=cur_host)
-
-        log.info('Finished in {:0.2f} seconds'.format(time.time() - start_t))
