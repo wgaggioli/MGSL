@@ -12,7 +12,7 @@ so you will want an account there.
 ## Install
 In the terminal, type:
 
-   python setup.py install
+    python setup.py install
 
 Then add your EC2 credentials and info to `config.ini`.
 
