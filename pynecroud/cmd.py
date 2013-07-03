@@ -83,6 +83,7 @@ class KillCommand(BaseCommand):
 
     parser.add_argument('--instance_id', help="ID of the instance to kill")
     parser.add_argument('--host', help="DNS Name of the instance to kill")
+    parser.add_argument('--aws_region', help="AWS region of the instance")
 
     def run(self):
         instance_id = self._get_option('instance_id')
@@ -91,6 +92,7 @@ class KillCommand(BaseCommand):
             raise InvalidConfig(
                 'Must supply either the instance_id or the host')
 
+        self.config['aws_region'] = self._get_option('aws_region', 'us-west-1')
         manager = self.manager_cls(self.config)
         manager.kill_instance(instance_id, host)
         self.local_cache.pop('instance_id', None)
@@ -106,6 +108,7 @@ class StartCommand(BaseCommand):
 
     # These are optional and can be supplied by the config and the local cache
     parser.add_argument('--ami', help="Amazon Machine Image ID")
+    parser.add_argument('--aws_region', help="AWS Region (default us-west-1)")
     parser.add_argument(
         '--security_group', help="Security group, if missing will create")
     parser.add_argument(
@@ -118,9 +121,8 @@ class StartCommand(BaseCommand):
 
     def _get_launcher_args(self):
         """This is EC2 specific"""
-        ami = self._get_option('ami')
-        if ami is None:
-            raise InvalidConfig('Must supply AMI')
+        # defaults to ubuntu 12.04 us-west-1
+        ami = self._get_option('ami', 'ami-11e6c854')
         args = (ami,)
         kwargs = {
             "group_name": self._get_option('security_group', 'minecraft'),
@@ -137,6 +139,7 @@ class StartCommand(BaseCommand):
         return args, kwargs
 
     def launch_instance(self, block=True):
+        self.config['aws_region'] = self._get_option('aws_region', 'us-west-1')
         launcher = self.manager_cls(self.config)
         args, kwargs = self._get_launcher_args()
         kwargs['block'] = block
@@ -274,11 +277,13 @@ class ChangeInstanceTypeCommand(StartCommand):
     parser.add_argument('--key_name', help="Key name of the new instance")
     parser.add_argument('--instance_name', help="Name of the new instance")
     parser.add_argument('--login_user', help='OS user on new server')
+    parser.add_argument('--aws_region', help="AWS region of new instance")
 
     # params for current instance
     parser.add_argument('--cur_host', help="IP of the current host")
     parser.add_argument('--cur_user', help="OS user on current server")
     parser.add_argument('--cur_key', help='Path to private key for current')
+    parser.add_argument('--cur_region', help="AWS region of new instance")
 
     def run(self):
         # current instance params (default to reading local cache)
@@ -290,6 +295,8 @@ class ChangeInstanceTypeCommand(StartCommand):
             raise InvalidConfig('Must specify cur_user')
         key_path = self.options.cur_key or self.local_cache.get(
             'key', os.path.expanduser('~/.ssh/minecraft.pem'))
+        cur_region = self.options.cur_region or self.local_cache.get(
+            'aws_region', 'us-west-1')
 
         # start new instance
         StartCommand.run(self)
@@ -317,5 +324,6 @@ class ChangeInstanceTypeCommand(StartCommand):
         # optionally kill old
         if self.options.kill:
             log.info('Killing {}'.format(cur_host))
+            self.config['aws_region'] = cur_region
             manager = self.manager_cls(self.config)
             manager.kill_instance(dns_name=cur_host)

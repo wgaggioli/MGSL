@@ -39,15 +39,3 @@ if __name__ == '__main__':
     cmd_kls = commands[args.command]
     cmd = cmd_kls.from_args_list(remainder)
     cmd.full_run()
-
-    # else:
-    #     a = raw_input("you are about to END a server. Continue? (y/n)")
-    #     if a == "y":
-    #         session = json.load(open('session.json', 'r'))
-    #         print session
-    #
-    #         if worldname:
-    #             for s in ['stop', 'save']:
-    #                 do_script(session['ip'], scripts[s])
-    #             open(worldname + '.json', 'w').write(json.dumps(session))
-    #
