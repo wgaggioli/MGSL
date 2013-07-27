@@ -27,5 +27,13 @@ def temporary_file(text=False, **kw):
     try:
         yield (fp, fname)
     finally:
-        fp.close()
+        if fp.closed:
+            fp.close()
         os.remove(fname)
+
+
+def asbool(value):
+    if isinstance(value, basestring):
+        return value.startswith('t')
+    else:
+        return bool(value)

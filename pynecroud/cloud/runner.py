@@ -32,25 +32,32 @@ class ServerRunner(object):
 
         return self._conn
 
-    def upload(self, local_file, remote_file, as_root=False, verbose=True):
+    def upload(self, local_file, remote_file, as_root=False, subparams=None,
+               verbose=True):
         if verbose:
             log.info('Uploading {} to {}'.format(local_file, remote_file))
 
         if as_root:
-            full_remote = '{user}@{host}:{remote_file}'.format(
-                user=self.user,
-                host=self.host,
-                remote_file=os.path.basename(remote_file)
-            )
+            upload_remote = os.path.basename(remote_file)
         else:
-            full_remote = '{user}@{host}:{remote_file}'.format(
-                user=self.user,
-                host=self.host,
-                remote_file=remote_file
-            )
+            upload_remote = remote_file
+        full_remote = '{user}@{host}:{remote_file}'.format(
+            user=self.user, host=self.host, remote_file=upload_remote)
+
+        if subparams:
+            tmp_context = temporary_file(text=True)
+            fpw, fname = tmp_context.__enter__()
+            with open(local_file, 'r') as fpr:
+                raw_script = fpr.read()
+                fpw.write(raw_script.format(**subparams))
+                fpw.close()
+                local_file = fname
 
         subprocess.check_call(
             ['scp', '-i', self.key_path, local_file, full_remote])
+
+        if subparams:
+            tmp_context.__exit__(None, None, None)
 
         if as_root:
             self.run_cmd('sudo cp {fname} {remote_file}'.format(
@@ -88,16 +95,7 @@ class ServerRunner(object):
         log.info(
             'Running local script {} on {}'.format(script_path, self.host))
         remote_file = os.path.basename(script_path)
-        if sub_params:
-            with temporary_file(text=True) as (fpw, fname):
-                with open(script_path, 'r') as fpr:
-                    raw_script = fpr.read()
-                    fpw.write(raw_script.format(**sub_params))
-                fpw.flush()
-                script_path = fname
-                self.upload(script_path, remote_file)
-        else:
-            self.upload(script_path, remote_file)
+        self.upload(script_path, remote_file, subparams=sub_params)
 
         cmd = '{shell} {remote_file}'.format(
             shell=shell, remote_file=remote_file)

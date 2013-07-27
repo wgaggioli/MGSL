@@ -3,6 +3,7 @@ import os
 
 import pynecroud
 from pynecroud.exceptions import PynecroudError
+from pynecroud.util import temporary_file
 
 
 class MineCraftServer(object):
@@ -15,15 +16,17 @@ class MineCraftServer(object):
     def _script_path(self, script_name):
         return os.path.join(self.SCRIPT_DIR, script_name)
 
-    def install(self, world='world'):
+    def install(self, world='world', memory='1024M', allocate_swap=False):
         self.runner.run_script(self._script_path('init.sh'))
         self.runner.run_script(
             self._script_path('new.sh'),
             sub_params={'world_name': world})
+        if allocate_swap:
+            self.runner.run_script(self._script_path('allocate_swap.sh'))
+        script_path = self._script_path('conf/minecraft-server.conf')
         self.runner.upload(
-            self._script_path('conf/minecraft-server.conf'),
-            '/etc/init/minecraft-server.conf',
-            as_root=True)
+            script_path, '/etc/init/minecraft-server.conf', as_root=True,
+            subparams={'memory': 'memory'})
         self.start()
         if world != 'world':
             with self.lower_server():

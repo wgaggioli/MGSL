@@ -9,7 +9,7 @@ from pynecroud.cloud.manager import EC2Manager
 from pynecroud.cloud.runner import ServerRunner
 from pynecroud.craft import MineCraftServer
 from pynecroud.exceptions import InvalidConfig
-from pynecroud.util import parse_config
+from pynecroud.util import parse_config, asbool
 
 log = logging.getLogger(__name__)
 
@@ -102,8 +102,7 @@ class KillCommand(BaseCommand):
 class StartCommand(BaseCommand):
     parser = argparse.ArgumentParser(
         prog='python manage.py start --',
-        description='Start a server and install minecraft, optionally loading '
-                    'a world unto it',
+        description='Start an instance and install minecraft',
         parents=[BaseCommand.parser])
 
     # These are optional and can be supplied by the config and the local cache
@@ -111,8 +110,12 @@ class StartCommand(BaseCommand):
     parser.add_argument('--aws_region', help="AWS Region (default us-west-1)")
     parser.add_argument(
         '--security_group', help="Security group, if missing will create")
+    parser.add_argument('--instance_type', help="Instance type")
     parser.add_argument(
-        '--instance_type', help="Instance type")
+        '--allocate_swap', action="store_true",
+        help="Allocate Swap Space for increased memory. This will cost money "
+             "due to EBS IO requests, but not very much. Could be a good "
+             "middle ground before upgrading an instance")
     parser.add_argument('--key_name', help="Key name of the instance")
     parser.add_argument('--instance_name', help="Name of the instance")
     parser.add_argument('--login_user', help='OS user on remote server')
@@ -138,6 +141,14 @@ class StartCommand(BaseCommand):
 
         return args, kwargs
 
+    def _get_memory(self, allocate_swap):
+        instance_type = self.local_cache['instance_type']
+        if not allocate_swap and instance_type == 't1.micro':
+            memory = '512M'
+        else:
+            memory = '1024M'
+        return memory
+
     def launch_instance(self, block=True):
         self.config['aws_region'] = self._get_option('aws_region', 'us-west-1')
         launcher = self.manager_cls(self.config)
@@ -151,12 +162,15 @@ class StartCommand(BaseCommand):
     def run(self):
         launcher = self.launch_instance()
         user = self._get_option('login_user', 'ubuntu')
+        allocate_swap = asbool(self._get_option('allocate_swap', False))
         runner = ServerRunner(
             launcher.instance.dns_name,
             user,
             key_path=launcher.key_path)
         self.mcs = MineCraftServer(runner)
-        self.mcs.install()
+        self.mcs.install(
+            allocate_swap=allocate_swap,
+            memory=self._get_memory(allocate_swap))
 
         # writing is ec2 specific
         self.local_cache.update({
@@ -274,6 +288,11 @@ class ChangeInstanceTypeCommand(StartCommand):
         '--security_group', help="Security group for new instance")
     parser.add_argument(
         '--instance_type', help="Instance type of the new instance")
+    parser.add_argument(
+        '--allocate_swap', action="store_true",
+        help="Allocate Swap Space for increased memory. This will cost money "
+             "due to EBS IO requests, but not very much. Could be a good "
+             "middle ground before upgrading an instance")
     parser.add_argument('--key_name', help="Key name of the new instance")
     parser.add_argument('--instance_name', help="Name of the new instance")
     parser.add_argument('--login_user', help='OS user on new server')
